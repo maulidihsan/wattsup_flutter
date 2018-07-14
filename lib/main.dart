@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:map_view/map_view.dart';
 import 'package:watts_up/phone_verification.dart';
@@ -35,8 +36,14 @@ class MapPage extends StatefulWidget {
 class _MapPageState extends State<MapPage> {
   MapView mapView = new MapView();
   CameraPosition cameraPosition;
+  var compositeSubscription = new CompositeSubscription();
   var staticMapProvider = new StaticMapProvider(api_key);
   Uri staticMapUri;
+
+  List<Marker> _markers = <Marker>[
+    new Marker("1", "Work", -6.1922009,106.8408011, color: Colors.blue),
+    new Marker("2", "Nossa Familia Coffee", -6.1922009,106.8408011),
+  ];
 
   // Fungsi untuk nampilin map activity
   showMap() {
@@ -49,6 +56,56 @@ class _MapPageState extends State<MapPage> {
         
       )
     );
+    _handleDismiss() async {
+    double zoomLevel = await mapView.zoomLevel;
+    Location centerLocation = await mapView.centerLocation;
+    List<Marker> visibleAnnotations = await mapView.visibleAnnotations;
+    print("Zoom Level: $zoomLevel");
+    print("Center: $centerLocation");
+    print("Visible Annotation Count: ${visibleAnnotations.length}");
+    var uri = await staticMapProvider.getImageUriFromMap(mapView,
+        width: 900, height: 400);
+    setState(() => staticMapUri = uri);
+    mapView.dismiss();
+    compositeSubscription.cancel();
+  }
+
+    var sub = mapView.onMapReady.listen((_) {
+      mapView.setMarkers(_markers);
+      mapView.addMarker(new Marker("3", "10 Barrel",-6.1922009,106.8408011,
+          color: Colors.purple));
+      mapView.zoomToFit(padding: 100);
+    });
+    compositeSubscription.add(sub);
+
+    sub = mapView.onLocationUpdated
+        .listen((location) => print("Location updated $location"));
+    compositeSubscription.add(sub);
+
+    sub = mapView.onTouchAnnotation
+        .listen((annotation) => print("annotation tapped"));
+    compositeSubscription.add(sub);
+
+    sub = mapView.onMapTapped
+        .listen((location) => print("Touched location $location"));
+    compositeSubscription.add(sub);
+
+    sub = mapView.onCameraChanged.listen((cameraPosition) =>
+        this.setState(() => this.cameraPosition = cameraPosition));
+    compositeSubscription.add(sub);
+
+    sub = mapView.onToolbarAction.listen((id) {
+      if (id == 1) {
+        _handleDismiss();
+      }
+    });
+    compositeSubscription.add(sub);
+
+    sub = mapView.onInfoWindowTapped.listen((marker) {
+      print("Info Window Tapped for ${marker.title}");
+    });
+    compositeSubscription.add(sub);
+    
   }
 
   // Ngambil Thumbnail Map
@@ -135,6 +192,39 @@ class _MapPageState extends State<MapPage> {
         ],
       ),
     );
+  }
+}
+
+
+
+class CompositeSubscription {
+  Set<StreamSubscription> _subscriptions = new Set();
+
+  void cancel() {
+    for (var n in this._subscriptions) {
+      n.cancel();
+    }
+    this._subscriptions = new Set();
+  }
+
+  void add(StreamSubscription subscription) {
+    this._subscriptions.add(subscription);
+  }
+
+  void addAll(Iterable<StreamSubscription> subs) {
+    _subscriptions.addAll(subs);
+  }
+
+  bool remove(StreamSubscription subscription) {
+    return this._subscriptions.remove(subscription);
+  }
+
+  bool contains(StreamSubscription subscription) {
+    return this._subscriptions.contains(subscription);
+  }
+
+  List<StreamSubscription> toList() {
+    return this._subscriptions.toList();
   }
 }
 
